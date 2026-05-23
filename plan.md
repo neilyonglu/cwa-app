@@ -1,0 +1,193 @@
+# CWA App — 實作計畫
+
+> 從 [cwa-tg-bot](../cwa-tg-bot/) 取氣象演算「概念」，**全部用 Flutter + Dart 重寫**（不沿用 Python 程式碼）。
+> 設計依據：[Figma CWA App Workflow](https://www.figma.com/board/bpGWEoHTqNY2diz4Z6qXH4/CWA-App-Workflow)
+
+## 目標
+
+純 Dart 跨平台 App，提供：
+
+**沿用 cwa-tg-bot 的功能（演算法概念照搬，程式碼 Dart 重寫）**
+- GPS 即時雨勢
+- 地名搜尋 → 雨勢
+- 北/中/南區域雷達圖
+- 喜愛點管理
+- AI 降雨分析（Gemini）
+
+**Telegram 做不到的新功能**
+- 🔔 系統級背景推播
+- 🧭 **導航中沿路徑降雨監控**（核心差異化）
+- ⏱️ 雷達歷史動畫時間軸
+- 📱 主畫面 Widget
+
+## 架構
+
+```
+┌──────────────────────────┐         ┌─────────────────────────┐
+│  cwa_app_flutter         │ ──HTTPS──▶│  cwa_app_server          │
+│  (iOS / Android)         │          │  (Serverpod)             │
+│                          │ ◀──FCM───│                          │
+│  - Riverpod              │          │  Endpoints:              │
+│  - go_router             │          │   - RadarEndpoint        │
+│  - dio                   │          │   - FavoriteEndpoint     │
+│  - geolocator            │          │   - SubscribeEndpoint    │
+│  - google_maps_flutter   │          │                          │
+│  - home_widget           │          │  FutureCalls (排程):     │
+│  - firebase_messaging    │          │   - PollRadarFrames (6m) │
+│                          │          │   - CheckFavoritesPush(6m)│
+│  使用 cwa_app_client      │          │                          │
+│  (auto-generated)        │          │  Algorithm (Dart 重寫):  │
+└──────────────────────────┘          │   - RadarFetcher         │
+                                      │   - DbzAnalyzer          │
+                                      │   - CoordProjection      │
+                                      │   - GeminiAnalyst        │
+                                      └────────┬─────────────────┘
+                                               │
+                                        ┌──────▼──────┐
+                                        │ Postgres    │
+                                        │ (Neon)      │
+                                        └─────────────┘
+```
+
+## Python → Dart 對照表（演算法概念照搬，套件替換）
+
+| cwa-tg-bot (Python) | cwa_app_server (Dart) | 用途 |
+|---|---|---|
+| `requests` + S3 抓 PNG | `package:http` | 抓 CWA 雷達 PNG |
+| `Pillow` | `package:image` | PNG 解碼、像素讀取、標註 |
+| `pyproj` (WGS84 ↔ AEQD) | `package:proj4dart` | 地理投影（GPS → 像素座標）|
+| `psycopg2` | Serverpod ORM (內建 postgres) | DB 連線 |
+| `google-generativeai` | `package:google_generative_ai` | Gemini AI 降雨分析 |
+| `python-telegram-bot` | ❌ 無需求 | （換成 Flutter UI）|
+| APScheduler / cron | Serverpod **Future Calls** | 排程 |
+
+**演算法本身不變**：
+- 雷達站座標 + dBZ 色碼表 → 一字不漏照抄（在 `cwa-tg-bot/config/settings.py`）
+- 像素分析：WGS84 → AEQD → 像素位置 → 取色 → 比對 dBZ 表 → 強度等級
+- Rolling buffer 設計（每站最新 5 張、PK = `(station_key, img_time)`）
+
+## 待決策事項
+
+| # | 議題 | 選項 | 預設建議 |
+|---|------|------|---------|
+| ~~D1~~ | ~~後端要新 repo 還是擴 cwa-tg-bot？~~ | — | **N/A**（已決定純 Dart 重寫）|
+| D2 | 地圖 SDK | Google Maps / Mapbox | **Google Maps** — 已有 GOOGLE_MAPS_KEY |
+| D3 | iOS build 路線 | Mac local / Codemagic 雲端 | **Codemagic** — 使用者在 Linux |
+| D4 | 後端部署 | Serverpod 自架 (Fly.io / Render) / Serverpod Cloud | **Fly.io** — Serverpod 官方教學首選 |
+| D5 | DB | 新 Neon DB / 沿用 cwa-tg-bot 的 Neon | **新 DB** — schema 由 Serverpod migrations 管 |
+
+## 階段拆解
+
+對應 Figma 6 步驟，但**執行順序重排**：先做後端 skeleton + 最高風險功能 spike，再做環境收尾。
+
+### Phase 0 — Serverpod backend skeleton（2–3 天）
+
+**目標**：跑得起 server，有第一個 endpoint 回得到雷達圖。
+
+- [ ] 安裝 Dart SDK + Serverpod CLI (`dart pub global activate serverpod_cli`)
+- [ ] `serverpod create cwa_app` → 產出 `cwa_app_server` / `cwa_app_client` / `cwa_app_flutter` 三個 package
+- [ ] 跑通本機 Postgres + Redis（Serverpod 內建 docker-compose）
+- [ ] 寫第一個 endpoint：`RadarEndpoint.getRegional(station)`
+  - [ ] Dart 實作 `RadarFetcher`（抓 CWA S3 PNG）
+  - [ ] 回傳 raw PNG bytes 或 base64
+- [ ] `serverpod generate` → client 自動更新
+- [ ] curl 測通
+
+**Done 標準**：本機跑 `dart run bin/main.dart`，client 呼叫 `client.radar.getRegional('north')` 回得到 PNG。
+
+### Phase 1 — 演算法核心移植（3–4 天）
+
+> 這是工作量大頭：把 Python 演算法用 Dart 重寫。
+
+- [ ] `DbzAnalyzer`：照 cwa-tg-bot/config/settings.py 的 dBZ 色碼表
+  - [ ] 寫單元測試：丟入 RGB → 預期 dBZ 強度
+- [ ] `CoordProjection`：WGS84 ↔ AEQD（用 proj4dart）
+  - [ ] 寫單元測試：北部雷達站 (24.998, 121.443) → 應落在影像中心附近
+- [ ] `RadarRenderer`：套 cwa-tg-bot/services/radar_render.py 的演算法，用 `package:image` 重寫
+  - [ ] 給 GPS → 回傳「標註過的雷達圖 + 命中強度」
+- [ ] `GeminiAnalyst`：丟雷達數據 → 回 AI 文字描述
+
+**Done 標準**：`RadarEndpoint.getNearby(lat, lon)` 回傳跟 cwa-tg-bot 一模一樣（圖片標註、AI 描述）的結果。
+
+### Phase 2 — Flutter app 骨架（1–2 天）
+
+- [ ] 在 `cwa_app_flutter/` 加套件：`flutter_riverpod` / `go_router` / `geolocator` / `firebase_messaging`
+- [ ] 三畫面骨架
+  - [ ] Home：「附近雨勢」「區域雷達」「我的喜愛點」
+  - [ ] Radar Detail：雷達圖 + AI 分析卡片
+  - [ ] Settings：訂閱、推播權限
+- [ ] 用自動生成的 `cwa_app_client` 串第一個 endpoint
+- [ ] Android emulator 跑通端到端
+
+**Done 標準**：Home 按鈕 → 取 GPS → 顯示後端回的雷達圖。
+
+### Phase 3 — 新功能 spike（按風險高→低）
+
+#### 3A. 路徑降雨監控 PoC（最高風險，5–7 天）
+
+> 核心差異化功能，**最有可能卡關，先做**。
+
+- [ ] `google_maps_flutter` 整合，畫起點→終點路徑（Google Directions API）
+- [ ] 後端加 `RouteEndpoint.checkPath(List<LatLng>)`
+  - [ ] 沿路徑每 N km 取樣
+  - [ ] 並行查每點 dBZ
+  - [ ] 回傳「命中雨區的路段 + 強度」
+- [ ] Flutter 把命中路段標紅
+- [ ] **整合導航模式**：每 30 秒重新查當前位置 + 未來 N km
+- [ ] **未知數**：Google Maps Flutter 記憶體 / 雷達圖 overlay 怎麼疊 / 電量消耗
+
+#### 3B. 背景推播（2–3 天）
+
+- [ ] Serverpod **Future Call**：`CheckFavoritesPush`，每 6 min 跑
+  - [ ] 掃所有 `subscribed=true` 的使用者 favorites
+  - [ ] 拉最新雷達 buffer 比對
+  - [ ] 命中 → 透過 Firebase Admin SDK 送 FCM
+- [ ] Flutter 加 `firebase_messaging`
+  - [ ] 註冊 token → 上傳到後端 `SubscribeEndpoint.registerDevice`
+  - [ ] 處理前台/背景/終止三種狀態
+
+#### 3C. 雷達動畫時間軸（2 天）
+
+- [ ] Future Call `PollRadarFrames`：每 6 min 抓 3 站 PNG 進 `radar_frames` table（按 cwa-tg-bot rolling buffer 設計）
+- [ ] `RadarEndpoint.getFrames(station, n)` 回最新 n 張
+- [ ] Flutter：PageView + 自動播放、可拖時間軸
+
+#### 3D. Widget（3–4 天，原生工作量大）
+
+- [ ] `home_widget` 套件
+- [ ] iOS：WidgetKit Swift extension
+- [ ] Android：AppWidgetProvider Kotlin
+- [ ] Widget：第一個 favorite 的雷達縮圖 + 「現在下雨/沒下」
+
+### Phase 4 — 測試
+
+- [ ] 後端：`dart test` for analyzer / projection / renderer
+- [ ] 前端：`flutter test` for widgets
+- [ ] Android 實機 adb install
+- [ ] iOS 實機 TestFlight
+
+### Phase 5 — 編譯與上架
+
+- [ ] Backend → Fly.io（Serverpod 提供 Dockerfile）
+- [ ] Android Linux 本機 `flutter build appbundle` → Google Play
+- [ ] iOS Codemagic 雲端 build → TestFlight → App Store
+- [ ] Apple Developer 帳號 $99/年
+
+## 風險登記
+
+| 風險 | 機率 | 影響 | 緩解 |
+|---|---|---|---|
+| Dart `image` 套件效能比 Pillow 慢 | 中 | 中 | 早期 benchmark；不夠快就上 isolate 平行處理 |
+| 路徑監控做不到實用程度 | 中 | 高（核心賣點） | Phase 3A 提前 spike，做不出來退回到「定點訂閱」 |
+| iOS 上架被退 | 中 | 中 | 早上 TestFlight |
+| Serverpod 學習曲線拖慢進度 | 中 | 中 | Phase 0 設 3 天時限，超過考慮退回 Dart Frog |
+| Fly.io free tier 冷啟動讓推播延遲 | 高 | 中 | 早期可接受；上線前升等 |
+| Google Maps 月費爆預算 | 低 | 中 | 設 quota alert |
+
+## 下一步（按優先序）
+
+1. **回答 D2–D5 決策**（5 分鐘）
+2. **動手 Phase 0**：安裝 Dart SDK + Serverpod CLI、`serverpod create cwa_app`
+3. 同步看 `cwa-tg-bot/config/settings.py` 把 dBZ 色碼表、雷達站座標**先抄一份到** `cwa_app_server/lib/src/config/`（純資料、最容易先做）
+
+> 此計畫為活文件，隨進度更新。完成項目改 ✅，調整決策直接編輯表格。

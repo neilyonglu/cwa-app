@@ -1,0 +1,66 @@
+# ─── Dart / Flutter ────────────────────────────────────────────
+.dart_tool/
+.packages
+build/
+.pub-cache/
+.pub/
+pubspec.lock
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Flutter platform-generated
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Runner.xcworkspace/xcuserdata/
+**/ios/Runner.xcodeproj/xcuserdata/
+**/ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
+**/android/.gradle/
+**/android/captures/
+**/android/local.properties
+**/android/key.properties
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+
+# ─── Serverpod ─────────────────────────────────────────────────
+# Secrets — NEVER commit
+**/config/passwords.yaml
+**/config/.passwords
+**/config/*.local.yaml
+
+# Serverpod generated (allow regen)
+# Note: generated/ should be committed for client SDK to work in CI
+# but local dev should regenerate via `serverpod generate`
+
+# Docker
+**/docker-compose.override.yml
+
+# ─── Environment / Secrets ─────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*-private-key.json
+**/google-services.json
+**/GoogleService-Info.plist
+firebase-adminsdk-*.json
+service-account*.json
+
+# ─── IDE ───────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# ─── OS ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Misc ──────────────────────────────────────────────────────
+*.log
+coverage/
+.coverage
