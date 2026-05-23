@@ -13,13 +13,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dart-lang/setup-dart@v1
+      # Workspace pubspec includes cwa_app_flutter → must install Flutter SDK
+      # (Dart-only setup fails: "cwa_app_flutter requires the Flutter SDK")
+      - uses: subosito/flutter-action@v2
         with:
-          sdk: 3.8.0
+          flutter-version: '3.44.0'
 
       - name: Install dependencies
         working-directory: cwa_app_server
-        run: dart pub get
+        run: flutter pub get
 
       - name: Analyze
         working-directory: cwa_app_server
