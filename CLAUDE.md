@@ -65,6 +65,10 @@
 - 任何雷達演算法都要寫單元測試（丟 RGB → 預期 dBZ、丟 GPS → 預期像素）
 - Flutter feature 拆 `features/<name>/`，內含 `view/`、`controller/`、`model/`
 - 用真實 CWA PNG 做測試（不要 mock 圖檔）
+- **push 到 GitHub 前，三份文件一起檢視更新**：
+  - [plan.md](plan.md) — 完成的 checkbox 打勾、決策變動寫進去
+  - [book.md](book.md) — 新的判斷/教訓加章節（這是學習用的思維手冊，不是 changelog）
+  - [CLAUDE.md](CLAUDE.md) — 規則、入口檔表、開發指令有變就更新
 
 ### ❌ 不該做
 - 不要在 Flutter 端解 PNG 做像素 loop（後端做完回結果）
@@ -73,29 +77,40 @@
 - 不要直接編輯 `cwa_app_client/`（自動生成）
 - 不要繞過 Serverpod 排程器自己接 cron（會跟 future calls 衝突）
 
-## 開發指令（待補）
+## 開發指令
 
-> 等 Phase 0 跑起來後填入。
+> Phase 0 跑通日期：2026-05-23。不用 Docker — Serverpod 直連 Neon（見 plan.md「本機開發策略」段）。
+
+PATH 一次性設定（已寫入 `~/.bashrc`，新 shell 自動有）：
+```
+$HOME/development/flutter/bin    # Flutter + Dart
+$HOME/.pub-cache/bin             # Serverpod CLI
+```
 
 ```bash
-# 後端
-cd cwa_app_server
-docker-compose up -d
-dart bin/main.dart
+# === 後端 ===
+cd cwa_app_server && dart bin/main.dart                       # 一般啟動（連 Neon）
+cd cwa_app_server && dart bin/main.dart --apply-migrations    # 第一次跑 / 改完 schema 後
 
-# Code generation（改 endpoint / protocol 後）
-cd cwa_app_server && serverpod generate
+# === 改完 endpoint / protocol 後（CLAUDE.md R5）===
+cd cwa_app_server && serverpod generate                       # 重新生成 client SDK + server 序列化
 
-# DB migration
-cd cwa_app_server && serverpod create-migration
+# === 改完 model schema 後 ===
+cd cwa_app_server && serverpod create-migration               # 產 SQL migration 檔
+# 下次 dart bin/main.dart --apply-migrations 會套用
 
-# 前端
+# === Workspace 層級（在 repo 根）===
+dart pub get                                                  # 解 3 個 package 的依賴
+
+# === 前端 ===
 cd cwa_app_flutter && flutter run
 
-# 測試
+# === 測試 ===
 cd cwa_app_server && dart test
 cd cwa_app_flutter && flutter test
 ```
+
+Server port 對照：8080 = API、8081 = Insights、8082 = Web（http://localhost:8082 有 Serverpod 歡迎頁）。
 
 ## 常見任務的入口檔
 

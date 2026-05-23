@@ -1,0 +1,11 @@
+name: _
+publish_to: none
+
+environment:
+  sdk: '^3.8.0'
+
+workspace:
+  - cwa_app_client
+  - cwa_app_server
+  - cwa_app_flutter
+

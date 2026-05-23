@@ -73,8 +73,17 @@
 | ~~D1~~ | ~~後端要新 repo 還是擴 cwa-tg-bot？~~ | — | **N/A**（已決定純 Dart 重寫）|
 | D2 | 地圖 SDK | Google Maps / Mapbox | **Google Maps** — 已有 GOOGLE_MAPS_KEY |
 | D3 | iOS build 路線 | Mac local / Codemagic 雲端 | **Codemagic** — 使用者在 Linux |
-| D4 | 後端部署 | Serverpod 自架 (Fly.io / Render) / Serverpod Cloud | **Fly.io** — Serverpod 官方教學首選 |
-| D5 | DB | 新 Neon DB / 沿用 cwa-tg-bot 的 Neon | **新 DB** — schema 由 Serverpod migrations 管 |
+| ~~D4~~ | ~~後端部署~~ | — | ✅ **Fly.io**（Serverpod 官方 Dockerfile 直接 deploy）|
+| ~~D5~~ | ~~DB~~ | — | ✅ **獨立新 Neon project + database `cwa_app`**（Neon 免費 = 100 projects/org、0.5GB & 100 CU-hours **per project**，獨立 project = 配額不跟 cwa-tg-bot 互吃；cwa-tg-bot 退役時直接砍 project）|
+
+### 本機開發策略（2026-05-23 拍板）
+
+- **不裝 Docker**。Serverpod 預設 `docker-compose.yaml` 裡的 Postgres + Redis 都跳過
+- DB 一律打 Neon（dev / prod 同一個 Neon project，不同 database；之後可開 branch 隔 prod）
+- `config/development.yaml` 設 `redis: enabled: false`
+  - 失去：分散式 cache、多 instance pub/sub
+  - 不影響：CRUD、Future Calls（寫 Postgres `serverpod_future_call` table，不靠 Redis）
+  - 要擴 multi-instance 再回頭開 Redis
 
 ## 階段拆解
 
@@ -84,9 +93,11 @@
 
 **目標**：跑得起 server，有第一個 endpoint 回得到雷達圖。
 
-- [ ] 安裝 Dart SDK + Serverpod CLI (`dart pub global activate serverpod_cli`)
+- [x] 安裝 Flutter SDK（含 Dart）→ `~/development/flutter`，已加 PATH
+- [ ] 安裝 Serverpod CLI (`dart pub global activate serverpod_cli`)
+- [x] Neon 開新 project + database `cwa_app`（ap-southeast-1）
 - [ ] `serverpod create cwa_app` → 產出 `cwa_app_server` / `cwa_app_client` / `cwa_app_flutter` 三個 package
-- [ ] 跑通本機 Postgres + Redis（Serverpod 內建 docker-compose）
+- [ ] 改 `config/development.yaml` + `config/passwords.yaml`：連 Neon、`redis.enabled: false`
 - [ ] 寫第一個 endpoint：`RadarEndpoint.getRegional(station)`
   - [ ] Dart 實作 `RadarFetcher`（抓 CWA S3 PNG）
   - [ ] 回傳 raw PNG bytes 或 base64

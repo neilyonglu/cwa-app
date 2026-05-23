@@ -5,6 +5,7 @@ build/
 .pub-cache/
 .pub/
 pubspec.lock
+pubspec_overrides.yaml
 .flutter-plugins
 .flutter-plugins-dependencies
 
@@ -64,3 +65,6 @@ Thumbs.db
 *.log
 coverage/
 .coverage
+
+# ─── Tool output ───────────────────────────────────────────────
+graphify-out/
