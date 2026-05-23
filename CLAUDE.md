@@ -65,10 +65,10 @@
 - 任何雷達演算法都要寫單元測試（丟 RGB → 預期 dBZ、丟 GPS → 預期像素）
 - Flutter feature 拆 `features/<name>/`，內含 `view/`、`controller/`、`model/`
 - 用真實 CWA PNG 做測試（不要 mock 圖檔）
-- **push 到 GitHub 前，三份文件一起檢視更新**：
+- **push 到 GitHub 前，兩份文件一起檢視更新**：
   - [plan.md](plan.md) — 完成的 checkbox 打勾、決策變動寫進去
-  - [book.md](book.md) — 新的判斷/教訓加章節（這是學習用的思維手冊，不是 changelog）
   - [CLAUDE.md](CLAUDE.md) — 規則、入口檔表、開發指令有變就更新
+- **`book.md` 是 local-only**（gitignored）：思維手冊，繼續更新但**永不 push**。原因：曾誤把 credential（已 rotate）寫進公開 repo，從此保留為本機檔。
 
 ### ❌ 不該做
 - 不要在 Flutter 端解 PNG 做像素 loop（後端做完回結果）

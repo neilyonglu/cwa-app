@@ -68,3 +68,6 @@ coverage/
 
 # ─── Tool output ───────────────────────────────────────────────
 graphify-out/
+
+# ─── Local-only learning notes (contain past credentials / personal thoughts) ──
+book.md
