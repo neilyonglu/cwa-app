@@ -87,6 +87,18 @@ $HOME/development/flutter/bin    # Flutter + Dart
 $HOME/.pub-cache/bin             # Serverpod CLI
 ```
 
+### 一鍵啟動（推薦）
+
+```bash
+./scripts/dev.sh                 # 清殘留 port → 起 server → 等 ready → 起 Flutter chrome
+./scripts/dev.sh --migrate       # 第一次跑 / 改完 schema：server 帶 --apply-migrations
+./scripts/dev.sh --server-only   # 只起 server，tail log
+./scripts/dev.sh --flutter-only  # 只起 Flutter（server 你自己手動）
+```
+Ctrl-C 會把背景 server 一起收掉。Server log 在 `/tmp/cwa_server.log`。
+
+### 手動分開跑（debug 哪邊掛時用）
+
 ```bash
 # === 後端 ===
 cd cwa_app_server && dart bin/main.dart                       # 一般啟動（連 Neon）
