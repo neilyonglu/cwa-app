@@ -47,7 +47,8 @@ class CoordProjection {
     final pLat = _deg2rad(lat);
     final pLon = _deg2rad(lon);
 
-    final cosC = math.sin(cLat) * math.sin(pLat) +
+    final cosC =
+        math.sin(cLat) * math.sin(pLat) +
         math.cos(cLat) * math.cos(pLat) * math.cos(pLon - cLon);
     // clamp 避免浮點誤差讓 acos 拿到 1.0000001 之類
     final cosCClamped = cosC.clamp(-1.0, 1.0);
@@ -58,7 +59,8 @@ class CoordProjection {
 
     final k = c / math.sin(c);
     final x = _earthRadius * k * math.cos(pLat) * math.sin(pLon - cLon);
-    final y = _earthRadius *
+    final y =
+        _earthRadius *
         k *
         (math.cos(cLat) * math.sin(pLat) -
             math.sin(cLat) * math.cos(pLat) * math.cos(pLon - cLon));
