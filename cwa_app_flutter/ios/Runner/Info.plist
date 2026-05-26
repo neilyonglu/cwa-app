@@ -4,6 +4,10 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>需要您的位置以查詢當地的降雨狀況</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>需要您的位置以監控沿途與訂閱地點的降雨</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

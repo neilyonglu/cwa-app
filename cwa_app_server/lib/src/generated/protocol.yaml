@@ -9,5 +9,7 @@ emailIdp:
   - hasAccount:
 jwtRefresh:
   - refreshAccessToken:
+radar:
+  - getNearby:
 greeting:
   - hello:

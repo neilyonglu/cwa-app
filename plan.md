@@ -85,6 +85,60 @@
   - 不影響：CRUD、Future Calls（寫 Postgres `serverpod_future_call` table，不靠 Redis）
   - 要擴 multi-instance 再回頭開 Redis
 
+## 進行中工作（live status — 2026-05-26）
+
+> 這節是 session 中斷 / quota 用完時的續工指南。把當前狀態落在這裡，下個 session 直接接。
+
+### 目前位置：Phase 2 視覺骨架 + Phase 0/1 第一片端到端 slice
+
+**已完成**
+- Flutter 端 Home 畫面：Apple Weather 風天空背景 + 玻璃卡片堆疊（summary / hourly / radar / AI）。檔案：
+  - `cwa_app_flutter/lib/theme/app_theme.dart`
+  - `cwa_app_flutter/lib/features/home/home_screen.dart`
+  - `cwa_app_flutter/lib/main.dart`（已指向 `HomeScreen`，AppShell 留檔備用）
+- 設計框架定案：4 個畫面（Now / Radar / Route / Favorites），其餘擱置
+- Nav bar 共識：**底部漂浮玻璃 pill（3 icon）**＝🗺 Radar / 📍 Now / ⭐ Favorites；右上 gear → Settings；Route 走 Now 頁面內 CTA，不佔 tab
+- Server 端開始建：
+  - `cwa_app_server/pubspec.yaml` 加了 `http: ^1.2.0` + `image: ^4.5.0`
+  - `cwa_app_server/lib/src/config/radar_config.dart`（雷達站 / dBZ 色表 / 區域邊界 / S3 URL，照搬 cwa-tg-bot/config/settings.py）
+
+### 進行中 slice：GPS 雨勢功能（cwa-tg-bot parity）
+
+決定的 scope：完整 parity — Client 拿 GPS → Server 抓 PNG + 投影 + dBZ 分析 → 回傳「中雨/沒下雨」+ PNG，Hero 與 Radar 卡都吃真實資料。
+
+**待辦（依序）**
+- [x] Server：`config/radar_config.dart`（雷達站 + dBZ 色表）
+- [x] Server：`algorithm/coord_projection.dart`（手寫 AEQD：WGS84 → 公尺 → 像素）
+- [x] Server：`algorithm/dbz_analyzer.dart`（顏色匹配 + 強度分級 + analyze_point_dbz）
+- [x] Server：`services/radar_fetcher.dart`（HTTP 抓 PNG + JSON metadata + in-memory cache）
+- [x] Server：`protocol/nearby_radar.spy.yaml`（DTO：ok/dbz/shortLabel/humanText/stationName/imageTime/pngBytes/userPxX/userPxY/inRange/isBlindZone/errorMessage）
+- [x] Server：`endpoints/radar_endpoint.dart`（`getNearby(lat, lon)`）
+- [x] 跑 `cd cwa_app_server && dart pub get && serverpod generate`
+- [x] Flutter：`pubspec.yaml` 加 `geolocator ^13.0.1`
+- [x] Flutter：iOS `Info.plist` + Android `AndroidManifest.xml` 加位置權限字串
+- [x] Flutter：HomeScreen 改 StatefulWidget，內含 `_Phase` 狀態機（initial/locating/fetching/ready/error）
+- [x] Flutter：Hero 與 RadarCard 改吃 state，pull-to-refresh、retry 都有
+- [x] `flutter analyze` 與 `dart analyze`（server）全綠 ✅
+
+**還沒做的（這輪刻意 skip）**
+- 標註紅點 + 中心裁切（mark_location）：前端目前用 BoxFit.cover 顯示整張 3600×3600 PNG
+- AI 降雨分析（Gemini）：Hero 下方 AI 卡仍是 mock 文字
+- Reverse geocode 顯示行政區名：Hero 位置現在顯示「觀測站名稱（北部(樹林) / 中部(南屯) / 南部(林園)）」當代理
+- Backup 雷達站邏輯
+- 未來一小時雨勢 hourly card 仍是 mock（CWA 沒對應 nowcast endpoint，可能改成「最近 60min 動畫」）
+
+**注意事項**
+- AEQD 公式：`R=6378137`；`c = acos(sin(lat0)·sin(lat) + cos(lat0)·cos(lat)·cos(lon−lon0))`；`k = c/sin(c)`；`x = R·k·cos(lat)·sin(lon−lon0)`；`y = R·k·(cos(lat0)·sin(lat) − sin(lat0)·cos(lat)·cos(lon−lon0))`；像素：`px_x = 1800 + (x/1000)·11.96`, `px_y = 1800 − (y/1000)·11.96`
+- dBZ → 文字分級（同 cwa-tg-bot）：`<=0` 無雨 / `<15` 微雨 / `<30` 一般雨 / `<45` 明顯雨 / `>=45` 強降雨
+- backup 雷達站邏輯（單站盲區時切其他站）這次先**不做**，YAGNI；之後遇到盲區再加
+- 標註紅點 + 裁切（mark_location）也先**不做**，回傳整張 3600×3600 PNG，前端先用 BoxFit + 比例縮放看；下一輪再做標註
+
+### 下一輪 slice（之後再做）
+1. 標註紅點 + 中心裁切（mark_location 等價）
+2. AI 降雨分析 endpoint（Gemini）
+3. Reverse geocode 顯示行政區名
+4. Backup 雷達站邏輯
+
 ## 階段拆解
 
 對應 Figma 6 步驟，但**執行順序重排**：先做後端 skeleton + 最高風險功能 spike，再做環境收尾。

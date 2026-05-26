@@ -1,0 +1,37 @@
+### GPS 雨勢查詢回傳結果（對應 cwa-tg-bot 的「查看現在位置」）。
+class: NearbyRadarResult
+
+fields:
+  ### 是否查詢成功（S3 抓得到 PNG）。
+  ok: bool
+
+  ### dBZ 值（0–65）。null 表示色表沒命中或落在影像外。
+  dbz: int?
+
+  ### 短標籤（Hero 大字）：沒下雨 / 微雨 / 小雨 / 中雨 / 大雨。
+  shortLabel: String
+
+  ### 人類描述（卡片內文）：目前無明顯降雨 / 正在下雨 / 強降雨 ...
+  humanText: String
+
+  ### 雷達站名稱（北部(樹林) / 中部(南屯) / 南部(林園)）。
+  stationName: String
+
+  ### 雷達圖時戳（CWA 提供，格式：YYYY-MM-DD HH:mm）。
+  imageTime: String
+
+  ### 原始 3600×3600 雷達 PNG bytes。前端用 Image.memory 顯示。
+  pngBytes: ByteData
+
+  ### 觀測點在 PNG 上的像素座標（前端做疊點 / 縮放標註用）。
+  userPxX: double
+  userPxY: double
+
+  ### 觀測點是否落在雷達影像範圍內。
+  inRange: bool
+
+  ### 是否落在盲區（dBZ == 0，通常表資料缺）。
+  isBlindZone: bool
+
+  ### 失敗時的訊息（ok == false 才有用）。
+  errorMessage: String?

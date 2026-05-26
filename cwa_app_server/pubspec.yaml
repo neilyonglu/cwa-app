@@ -11,6 +11,8 @@ resolution: workspace
 dependencies:
   serverpod: 3.4.8
   serverpod_auth_idp_server: 3.4.8
+  http: ^1.2.0
+  image: ^4.5.0
 
 dev_dependencies:
   lints: '>=3.0.0 <7.0.0'
