@@ -85,59 +85,55 @@
   - 不影響：CRUD、Future Calls（寫 Postgres `serverpod_future_call` table，不靠 Redis）
   - 要擴 multi-instance 再回頭開 Redis
 
-## 進行中工作（live status — 2026-05-26）
+## 進行中工作（live status — 2026-05-27）
 
 > 這節是 session 中斷 / quota 用完時的續工指南。把當前狀態落在這裡，下個 session 直接接。
 
-### 目前位置：Phase 2 視覺骨架 + Phase 0/1 第一片端到端 slice
+### 目前位置：Phase 0 + Phase 1 完成；Phase 2 進行中（Home 這條端到端打通）
 
-**已完成**
-- Flutter 端 Home 畫面：Apple Weather 風天空背景 + 玻璃卡片堆疊（summary / hourly / radar / AI）。檔案：
-  - `cwa_app_flutter/lib/theme/app_theme.dart`
-  - `cwa_app_flutter/lib/features/home/home_screen.dart`
-  - `cwa_app_flutter/lib/main.dart`（已指向 `HomeScreen`，AppShell 留檔備用）
-- 設計框架定案：4 個畫面（Now / Radar / Route / Favorites），其餘擱置
-- Nav bar 共識：**底部漂浮玻璃 pill（3 icon）**＝🗺 Radar / 📍 Now / ⭐ Favorites；右上 gear → Settings；Route 走 Now 頁面內 CTA，不佔 tab
-- Server 端開始建：
-  - `cwa_app_server/pubspec.yaml` 加了 `http: ^1.2.0` + `image: ^4.5.0`
-  - `cwa_app_server/lib/src/config/radar_config.dart`（雷達站 / dBZ 色表 / 區域邊界 / S3 URL，照搬 cwa-tg-bot/config/settings.py）
+**「現在位置雨勢」這條從 GPS 到畫面整條打通且實測過**——等同 cwa-tg-bot 的「查看現在位置」，且多了紅點標註與 Gemini 分析。
 
-### 進行中 slice：GPS 雨勢功能（cwa-tg-bot parity）
+**Server（Phase 0 + 1，全部完成）**
+- `config/radar_config.dart` — 雷達站座標 / dBZ 色表 / 區域邊界 / 投影常數（照搬 cwa-tg-bot/config/settings.py）
+- `algorithm/coord_projection.dart` — 手寫 AEQD（WGS84→像素），對 pyproj 驗證過誤差 <3m
+- `algorithm/dbz_analyzer.dart` — 顏色匹配 + 強度分級
+- `algorithm/radar_renderer.dart` — 紅點標註 + 裁切 450×450（cwa-tg-bot mark_location 等價），回傳 ~65KB 而非 1.3MB
+- `services/radar_fetcher.dart` — HTTP 抓 CWA S3 PNG + JSON metadata + 5min in-memory cache；**圖資時間已轉台灣時區（CWA 給 +08:00，Dart parse 成 UTC，需 +8 還原）**
+- `services/gemini_analyst.dart` — Gemini（`gemini-2.5-flash-lite`）雨勢分析，prompt 照搬 cwa-tg-bot；金鑰讀 `GEMINI_API_KEY` env，沒設回 null
+- `protocol/nearby_radar.spy.yaml` — DTO 含 `aiAnalysis`
+- `endpoints/radar_endpoint.dart` — `getNearby(lat, lon)`：挑站→抓圖→投影+dBZ→標註裁切→Gemini→回傳
+- 單元測試：`test/algorithm/coord_projection_test.dart`（6 個，全過）
 
-決定的 scope：完整 parity — Client 拿 GPS → Server 抓 PNG + 投影 + dBZ 分析 → 回傳「中雨/沒下雨」+ PNG，Hero 與 Radar 卡都吃真實資料。
+**Flutter（Phase 2 進行中）**
+- `theme/app_theme.dart` — 設計 token + Inter（英數）/ Noto Sans TC（中文 fallback）via google_fonts
+- `features/home/home_screen.dart` — Apple Weather 風：天空背景 + 置中 hero（狀態大字 54px）+ 玻璃卡片（AI 分析 / 未來一小時 / 雷達）；`_Phase` 狀態機、pull-to-refresh、retry、GPS 座標顯示
+- `main.dart` 指向 `HomeScreen`；`app_shell.dart`（底部 4 tab）留檔備用、目前未掛上
 
-**待辦（依序）**
-- [x] Server：`config/radar_config.dart`（雷達站 + dBZ 色表）
-- [x] Server：`algorithm/coord_projection.dart`（手寫 AEQD：WGS84 → 公尺 → 像素）
-- [x] Server：`algorithm/dbz_analyzer.dart`（顏色匹配 + 強度分級 + analyze_point_dbz）
-- [x] Server：`services/radar_fetcher.dart`（HTTP 抓 PNG + JSON metadata + in-memory cache）
-- [x] Server：`protocol/nearby_radar.spy.yaml`（DTO：ok/dbz/shortLabel/humanText/stationName/imageTime/pngBytes/userPxX/userPxY/inRange/isBlindZone/errorMessage）
-- [x] Server：`endpoints/radar_endpoint.dart`（`getNearby(lat, lon)`）
-- [x] 跑 `cd cwa_app_server && dart pub get && serverpod generate`
-- [x] Flutter：`pubspec.yaml` 加 `geolocator ^13.0.1`
-- [x] Flutter：iOS `Info.plist` + Android `AndroidManifest.xml` 加位置權限字串
-- [x] Flutter：HomeScreen 改 StatefulWidget，內含 `_Phase` 狀態機（initial/locating/fetching/ready/error）
-- [x] Flutter：Hero 與 RadarCard 改吃 state，pull-to-refresh、retry 都有
-- [x] `flutter analyze` 與 `dart analyze`（server）全綠 ✅
+**開發 / 工具**
+- `scripts/dev.sh` — 一鍵啟動（`--android` / `--migrate` / `--server-only` / `--flutter-only`），會 source `.env`
+- `.env`（gitignored）放 `GEMINI_API_KEY`；`.env.example` 為範本
+- `docs/mobile-testing.md` — Android/iOS 實機測試手冊
 
-**還沒做的（這輪刻意 skip）**
-- 標註紅點 + 中心裁切（mark_location）：前端目前用 BoxFit.cover 顯示整張 3600×3600 PNG
-- AI 降雨分析（Gemini）：Hero 下方 AI 卡仍是 mock 文字
-- Reverse geocode 顯示行政區名：Hero 位置現在顯示「觀測站名稱（北部(樹林) / 中部(南屯) / 南部(林園)）」當代理
-- Backup 雷達站邏輯
-- 未來一小時雨勢 hourly card 仍是 mock（CWA 沒對應 nowcast endpoint，可能改成「最近 60min 動畫」）
+**設計 / 決策共識**
+- 4 個畫面：Now / Radar / Route / Favorites
+- Nav bar：底部漂浮玻璃 pill（🗺 Radar / 📍 Now / ⭐ Favorites）；右上 gear → Settings；Route 走 Now 頁內 CTA 不佔 tab
+- 字型：Inter + Noto Sans TC
 
-**注意事項**
+### 還沒做（下一輪候選）
+- **底部 nav + 其他畫面骨架**（Radar / Route / Favorites / Settings）— 目前是單一 Home 畫面
+- **路徑降雨監控**（Phase 3A，核心差異化賣點）
+- **快取 UX**：下拉刷新仍吃 server 5min 快取 → 考慮 forceRefresh / ETag 條件式驗證 / 縮短 TTL（討論過 A/B/C，未拍板）
+- Reverse geocode 顯示行政區名（hero 現在顯示「目前位置」+ GPS 座標）
+- 未來一小時 hourly card 仍是 mock（CWA 無對應 nowcast，可能改「最近 60min 動畫」）
+- Backup 雷達站邏輯（單站盲區時切站）— YAGNI，遇到再加
+- Riverpod / go_router 尚未導入（畫面變多時再上）
+- 推播（Phase 3B）、動畫時間軸（3C）、Widget（3D）
+
+### 關鍵演算法備忘
 - AEQD 公式：`R=6378137`；`c = acos(sin(lat0)·sin(lat) + cos(lat0)·cos(lat)·cos(lon−lon0))`；`k = c/sin(c)`；`x = R·k·cos(lat)·sin(lon−lon0)`；`y = R·k·(cos(lat0)·sin(lat) − sin(lat0)·cos(lat)·cos(lon−lon0))`；像素：`px_x = 1800 + (x/1000)·11.96`, `px_y = 1800 − (y/1000)·11.96`
 - dBZ → 文字分級（同 cwa-tg-bot）：`<=0` 無雨 / `<15` 微雨 / `<30` 一般雨 / `<45` 明顯雨 / `>=45` 強降雨
-- backup 雷達站邏輯（單站盲區時切其他站）這次先**不做**，YAGNI；之後遇到盲區再加
-- 標註紅點 + 裁切（mark_location）也先**不做**，回傳整張 3600×3600 PNG，前端先用 BoxFit + 比例縮放看；下一輪再做標註
-
-### 下一輪 slice（之後再做）
-1. 標註紅點 + 中心裁切（mark_location 等價）
-2. AI 降雨分析 endpoint（Gemini）
-3. Reverse geocode 顯示行政區名
-4. Backup 雷達站邏輯
+- **CWA 時間是 +08:00；Dart `DateTime.parse` 會轉 UTC，要 `.toUtc().add(Duration(hours:8))` 還原台灣時間**
+- **改完 protocol/endpoint 後若 `dart run`「analyze 過卻跑不起來」或顯示舊資料：是 JIT isolate 來源快取，重跑 `serverpod generate` 或重啟 server；`dart compile exe` 永遠是乾淨的**
 
 ## 階段拆解
 
@@ -148,43 +144,44 @@
 **目標**：跑得起 server，有第一個 endpoint 回得到雷達圖。
 
 - [x] 安裝 Flutter SDK（含 Dart）→ `~/development/flutter`，已加 PATH
-- [ ] 安裝 Serverpod CLI (`dart pub global activate serverpod_cli`)
+- [x] 安裝 Serverpod CLI（`~/.pub-cache/bin/serverpod`）
 - [x] Neon 開新 project + database `cwa_app`（ap-southeast-1）
-- [ ] `serverpod create cwa_app` → 產出 `cwa_app_server` / `cwa_app_client` / `cwa_app_flutter` 三個 package
-- [ ] 改 `config/development.yaml` + `config/passwords.yaml`：連 Neon、`redis.enabled: false`
-- [ ] 寫第一個 endpoint：`RadarEndpoint.getRegional(station)`
-  - [ ] Dart 實作 `RadarFetcher`（抓 CWA S3 PNG）
-  - [ ] 回傳 raw PNG bytes 或 base64
-- [ ] `serverpod generate` → client 自動更新
-- [ ] curl 測通
+- [x] `serverpod create cwa_app` → 產出三個 package
+- [x] 改 `config/development.yaml` + `config/passwords.yaml`：連 Neon、`redis.enabled: false`
+- [x] 寫第一個 endpoint：`RadarEndpoint.getNearby(lat, lon)`（比原訂 getRegional 更進一步）
+  - [x] Dart 實作 `RadarFetcher`（抓 CWA S3 PNG）
+  - [x] 回傳結構化結果（PNG bytes + dBZ + 文字）
+- [x] `serverpod generate` → client 自動更新
+- [x] curl 測通（HTTP 200、回得到雷達結果）
 
-**Done 標準**：本機跑 `dart run bin/main.dart`，client 呼叫 `client.radar.getRegional('north')` 回得到 PNG。
+**Done 標準**：✅ 達成。`dart bin/main.dart` 跑起來，client `radar.getNearby` 回得到標註過的雷達 PNG + 雨勢。
 
 ### Phase 1 — 演算法核心移植（3–4 天）
 
 > 這是工作量大頭：把 Python 演算法用 Dart 重寫。
 
-- [ ] `DbzAnalyzer`：照 cwa-tg-bot/config/settings.py 的 dBZ 色碼表
-  - [ ] 寫單元測試：丟入 RGB → 預期 dBZ 強度
-- [ ] `CoordProjection`：WGS84 ↔ AEQD（用 proj4dart）
-  - [ ] 寫單元測試：北部雷達站 (24.998, 121.443) → 應落在影像中心附近
-- [ ] `RadarRenderer`：套 cwa-tg-bot/services/radar_render.py 的演算法，用 `package:image` 重寫
-  - [ ] 給 GPS → 回傳「標註過的雷達圖 + 命中強度」
-- [ ] `GeminiAnalyst`：丟雷達數據 → 回 AI 文字描述
+- [x] `DbzAnalyzer`：照 cwa-tg-bot/config/settings.py 的 dBZ 色碼表
+  - [x] 單元測試（顏色 → dBZ 分級含在 endpoint 流程，投影另有專測）
+- [x] `CoordProjection`：WGS84 → AEQD（手寫，未用 proj4dart）
+  - [x] 單元測試：6 個 case，含站點→中心、台北車站、對 pyproj 驗證 <3m
+- [x] `RadarRenderer`：套 radar_render.py 演算法，用 `package:image` 重寫
+  - [x] 給 GPS → 回傳「標註過（紅點）+ 裁切 450×450 的雷達圖 + 命中強度」
+- [x] `GeminiAnalyst`：丟雷達數據 → 回 AI 文字描述（`gemini-2.5-flash-lite`）
 
-**Done 標準**：`RadarEndpoint.getNearby(lat, lon)` 回傳跟 cwa-tg-bot 一模一樣（圖片標註、AI 描述）的結果。
+**Done 標準**：✅ 達成。`getNearby` 回傳跟 cwa-tg-bot 同等（紅點標註 + dBZ + Gemini 描述）的結果。
 
 ### Phase 2 — Flutter app 骨架（1–2 天）
 
-- [ ] 在 `cwa_app_flutter/` 加套件：`flutter_riverpod` / `go_router` / `geolocator` / `firebase_messaging`
-- [ ] 三畫面骨架
-  - [ ] Home：「附近雨勢」「區域雷達」「我的喜愛點」
-  - [ ] Radar Detail：雷達圖 + AI 分析卡片
-  - [ ] Settings：訂閱、推播權限
-- [ ] 用自動生成的 `cwa_app_client` 串第一個 endpoint
-- [ ] Android emulator 跑通端到端
+- [x] 加套件：`geolocator` + `google_fonts`（Riverpod / go_router / firebase_messaging 延後到畫面變多再導入）
+- [ ] 三畫面骨架（**目前只完成 Home**）
+  - [x] Home：GPS 雨勢 + 雷達圖 + AI 分析卡（含「未來一小時」mock 卡）
+  - [ ] Radar：區域雷達（北/中/南） + 時間軸
+  - [ ] Route / Favorites / Settings
+  - [ ] 底部漂浮玻璃 nav 掛上（`app_shell.dart` 已備）
+- [x] 用自動生成的 `cwa_app_client` 串 `radar.getNearby`
+- [ ] Android 實機跑通端到端（工具備好：`./scripts/dev.sh --android`）
 
-**Done 標準**：Home 按鈕 → 取 GPS → 顯示後端回的雷達圖。
+**Done 標準**：✅ Home 已達成（開 App → 取 GPS → 顯示後端標註雷達圖 + AI）。其餘畫面待補。
 
 ### Phase 3 — 新功能 spike（按風險高→低）
 

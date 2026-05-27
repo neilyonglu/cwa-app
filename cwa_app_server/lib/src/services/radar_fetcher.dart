@@ -57,7 +57,11 @@ class RadarFetcher {
           if (dt is String) {
             final parsed = DateTime.tryParse(dt);
             if (parsed != null) {
-              imageTime = _formatTime(parsed);
+              // CWA 給的是 +08:00；DateTime.parse 會轉成 UTC（.hour 變成
+              // 少 8 小時）。顯式 +8 還原台灣時間後再 format，避免顯示成
+              // 「早上 8:56」這種看似 8 小時前的舊圖。
+              final taipei = parsed.toUtc().add(const Duration(hours: 8));
+              imageTime = _formatTime(taipei);
             }
           }
         }
