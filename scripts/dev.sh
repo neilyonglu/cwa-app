@@ -4,15 +4,19 @@
 #   1. 殺掉殘留的 dart server process（避免 8080/8081/8082 被佔）
 #   2. 在背景啟動 Serverpod（log 寫到 /tmp/cwa_server.log）
 #   3. 輪詢 http://localhost:8080/ 等 ready
-#   4. 啟動 Flutter on Chrome（前景）
+#   4. 啟動 Flutter on Chrome（前景） — 預設
+#      或：跑在連線中的 Android 裝置上（--android），自動跑 adb reverse
 #
 # Ctrl-C 或 Flutter 正常結束時，會自動把 server 一起收掉。
 #
 # 用法：
-#   ./scripts/dev.sh                 # 啟動全套
+#   ./scripts/dev.sh                 # 啟動全套（Chrome）
+#   ./scripts/dev.sh --android       # 啟動 server + 跑在 Android 實機 / emulator
 #   ./scripts/dev.sh --migrate       # 第一次跑 / 改完 schema 後（多帶 --apply-migrations）
 #   ./scripts/dev.sh --server-only   # 只起 server，不開 Flutter
 #   ./scripts/dev.sh --flutter-only  # 只起 Flutter（前提：server 你自己手動跑）
+#
+# 手機測試詳情見 docs/mobile-testing.md。
 
 set -uo pipefail
 
@@ -25,13 +29,15 @@ SERVER_LOG="/tmp/cwa_server.log"
 MIGRATE=0
 SERVER_ONLY=0
 FLUTTER_ONLY=0
+ANDROID=0
 for arg in "$@"; do
   case "$arg" in
     --migrate)       MIGRATE=1 ;;
     --server-only)   SERVER_ONLY=1 ;;
     --flutter-only)  FLUTTER_ONLY=1 ;;
+    --android)       ANDROID=1 ;;
     -h|--help)
-      sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '3,20p' "$0" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *)
       echo "unknown arg: $arg" >&2; exit 2 ;;
@@ -124,9 +130,45 @@ if [ "$SERVER_ONLY" -eq 1 ]; then
   say "${c_d}  Ctrl-C 結束${c_n}"
   # 把 server log 接過來顯示
   tail -f "$SERVER_LOG"
-else
-  say ""
-  say "${c_g}→ 啟動 Flutter chrome${c_n}"
-  cd "$ROOT/cwa_app_flutter"
-  "$FLUTTER" run -d chrome
+  exit 0
 fi
+
+cd "$ROOT/cwa_app_flutter"
+
+if [ "$ANDROID" -eq 1 ]; then
+  # 1. 確認 adb 在 PATH
+  if ! command -v adb >/dev/null 2>&1; then
+    say ""
+    say "${c_r}✗ 找不到 adb${c_n}"
+    say "  Ubuntu/Debian: ${c_d}sudo apt install android-tools-adb${c_n}"
+    say "  或裝 Android Studio，把 ~/Android/Sdk/platform-tools 加到 PATH"
+    exit 1
+  fi
+
+  # 2. 抓第一個已授權的 Android 裝置
+  DEVICE=$(adb devices | awk 'NR>1 && $2=="device" {print $1; exit}')
+  if [ -z "$DEVICE" ]; then
+    say ""
+    say "${c_r}✗ 找不到已授權的 Android 裝置${c_n}"
+    say "  確認：USB 連好、開發者選項 + USB 偵錯 ON、手機跳出對話框時點允許"
+    say "  跑 ${c_d}adb devices${c_n} 看狀態（unauthorized = 沒授權、offline = adb 卡住）"
+    say "  詳情見 docs/mobile-testing.md"
+    exit 1
+  fi
+  say ""
+  say "${c_g}→ Android 裝置：${c_n}$DEVICE"
+
+  # 3. adb reverse 8080/8081（讓手機的 localhost 轉發到 PC）
+  say "${c_y}→ adb reverse 8080 + 8081 + 8082${c_n}"
+  adb -s "$DEVICE" reverse tcp:8080 tcp:8080 >/dev/null
+  adb -s "$DEVICE" reverse tcp:8081 tcp:8081 >/dev/null
+  adb -s "$DEVICE" reverse tcp:8082 tcp:8082 >/dev/null
+
+  # 4. 跑 flutter run
+  say "${c_g}→ 啟動 Flutter on $DEVICE${c_n}"
+  exec "$FLUTTER" run -d "$DEVICE"
+fi
+
+say ""
+say "${c_g}→ 啟動 Flutter chrome${c_n}"
+exec "$FLUTTER" run -d chrome

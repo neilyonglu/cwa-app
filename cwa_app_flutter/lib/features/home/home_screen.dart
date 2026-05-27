@@ -31,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   _Phase _phase = _Phase.initial;
   String? _errorMessage;
   NearbyRadarResult? _result;
+  Position? _position;
 
   @override
   void initState() {
@@ -72,11 +73,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
       if (!mounted) return;
-      setState(() => _phase = _Phase.fetching);
+      setState(() {
+        _position = pos;
+        _phase = _Phase.fetching;
+      });
 
       // 4. 呼叫 server
-      final res =
-          await client.radar.getNearby(pos.latitude, pos.longitude);
+      final res = await client.radar.getNearby(pos.latitude, pos.longitude);
       if (!mounted) return;
 
       if (!res.ok) {
@@ -132,11 +135,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  String get _heroLocation {
-    if (_phase == _Phase.ready && _result?.stationName.isNotEmpty == true) {
-      return _result!.stationName;
-    }
-    return '目前位置';
+  String get _heroLocation => '目前位置';
+
+  /// GPS 座標（給 hero 下方小字顯示，方便驗證定位有沒有跑到對的地方）。
+  /// TODO: 接 reverse geocoding 後改成「信義區」「內湖區」這種行政區名。
+  String? get _heroCoords {
+    final p = _position;
+    if (p == null) return null;
+    return '${p.latitude.toStringAsFixed(4)}°N, ${p.longitude.toStringAsFixed(4)}°E';
   }
 
   Uint8List? get _pngBytes {
@@ -168,14 +174,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 16),
                     _Hero(
                       location: _heroLocation,
+                      coords: _heroCoords,
                       label: _heroLabel,
                       sub: _heroSub,
                       onRetry: _phase == _Phase.error ? _load : null,
                     ),
                     const SizedBox(height: 28),
-                    _SummaryCard(humanText: _phase == _Phase.ready
-                        ? _result?.humanText
-                        : null),
+                    _SummaryCard(
+                      humanText: _phase == _Phase.ready
+                          ? _result?.humanText
+                          : null,
+                    ),
                     const SizedBox(height: 12),
                     const _HourlyCard(),
                     const SizedBox(height: 12),
@@ -185,7 +194,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       stationName: _result?.stationName,
                       userPxX: _result?.userPxX,
                       userPxY: _result?.userPxY,
-                      isLoading: _phase == _Phase.locating ||
+                      inRange: _result?.inRange ?? false,
+                      isLoading:
+                          _phase == _Phase.locating ||
                           _phase == _Phase.fetching,
                     ),
                     const SizedBox(height: 12),
@@ -241,16 +252,17 @@ class _CloudsPainter extends CustomPainter {
     // 太陽光暈（右上）
     final sunCenter = Offset(w * 0.82, h * 0.07);
     final sunHalo = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          Colors.white.withValues(alpha: 0.85),
-          Colors.white.withValues(alpha: 0.30),
-          Colors.white.withValues(alpha: 0.0),
-        ],
-        stops: const [0.0, 0.35, 1.0],
-      ).createShader(
-        Rect.fromCircle(center: sunCenter, radius: w * 0.6),
-      );
+      ..shader =
+          RadialGradient(
+            colors: [
+              Colors.white.withValues(alpha: 0.85),
+              Colors.white.withValues(alpha: 0.30),
+              Colors.white.withValues(alpha: 0.0),
+            ],
+            stops: const [0.0, 0.35, 1.0],
+          ).createShader(
+            Rect.fromCircle(center: sunCenter, radius: w * 0.6),
+          );
     canvas.drawCircle(sunCenter, w * 0.6, sunHalo);
 
     // 太陽核心
@@ -365,10 +377,12 @@ class _Hero extends StatelessWidget {
     required this.location,
     required this.label,
     required this.sub,
+    this.coords,
     this.onRetry,
   });
 
   final String location;
+  final String? coords;
   final String label;
   final String sub;
   final VoidCallback? onRetry;
@@ -385,6 +399,18 @@ class _Hero extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(location, style: AppText.heroLocation),
+        if (coords != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            coords!,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.white.withValues(alpha: 0.55),
+              letterSpacing: 0.5,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
         const SizedBox(height: 4),
         Text(label, style: AppText.heroNumber, textAlign: TextAlign.center),
         const SizedBox(height: 4),
@@ -400,17 +426,24 @@ class _Hero extends StatelessWidget {
           const SizedBox(height: 14),
           TextButton.icon(
             onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded,
-                color: Colors.white, size: 16),
-            label: const Text('重試',
-                style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w600)),
+            icon: const Icon(
+              Icons.refresh_rounded,
+              color: Colors.white,
+              size: 16,
+            ),
+            label: const Text(
+              '重試',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             style: TextButton.styleFrom(
               backgroundColor: Colors.white.withValues(alpha: 0.18),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(99)),
+                borderRadius: BorderRadius.circular(99),
+              ),
             ),
           ),
         ],
@@ -456,9 +489,11 @@ class _GlassCard extends StatelessWidget {
                 Row(
                   children: [
                     if (icon != null) ...[
-                      Icon(icon,
-                          size: 13,
-                          color: Colors.white.withValues(alpha: 0.7)),
+                      Icon(
+                        icon,
+                        size: 13,
+                        color: Colors.white.withValues(alpha: 0.7),
+                      ),
                       const SizedBox(width: 6),
                     ],
                     Text(
@@ -687,8 +722,7 @@ class _HourlyCurvePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _HourlyCurvePainter old) =>
-      old.values != values;
+  bool shouldRepaint(covariant _HourlyCurvePainter old) => old.values != values;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -701,14 +735,20 @@ class _RadarCard extends StatelessWidget {
     this.stationName,
     this.userPxX,
     this.userPxY,
+    this.inRange = false,
     this.isLoading = false,
   });
+
+  /// CWA O-A0084-xxx 雷達圖固定為 3600×3600 px。
+  /// 把 server 回的 userPxX/userPxY 從這個座標系轉到顯示尺寸用。
+  static const _radarPxSize = 3600.0;
 
   final Uint8List? pngBytes;
   final String? imageTime;
   final String? stationName;
   final double? userPxX;
   final double? userPxY;
+  final bool inRange;
   final bool isLoading;
 
   @override
@@ -728,63 +768,83 @@ class _RadarCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             child: AspectRatio(
               aspectRatio: 1, // CWA PNG 是 3600x3600 正方
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (pngBytes != null)
-                    Image.memory(
-                      pngBytes!,
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
-                      filterQuality: FilterQuality.medium,
-                    )
-                  else
-                    const DecoratedBox(
-                      decoration: BoxDecoration(color: Color(0xFF15233F)),
-                      child: CustomPaint(painter: _RadarPainter()),
-                    ),
-                  if (isLoading)
-                    Container(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      alignment: Alignment.center,
-                      child: const SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2.5,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final w = constraints.maxWidth;
+                  final h = constraints.maxHeight;
+                  final showDot =
+                      pngBytes != null &&
+                      inRange &&
+                      userPxX != null &&
+                      userPxY != null;
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (pngBytes != null)
+                        Image.memory(
+                          pngBytes!,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          filterQuality: FilterQuality.medium,
+                        )
+                      else
+                        const DecoratedBox(
+                          decoration: BoxDecoration(color: Color(0xFF15233F)),
+                          child: CustomPaint(painter: _RadarPainter()),
                         ),
-                      ),
-                    ),
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _LiveDot(),
-                          SizedBox(width: 6),
-                          Text(
-                            'LIVE',
-                            style: TextStyle(
-                              fontSize: 11,
+                      if (isLoading)
+                        Container(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          alignment: Alignment.center,
+                          child: const SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: CircularProgressIndicator(
                               color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.0,
+                              strokeWidth: 2.5,
                             ),
                           ),
-                        ],
+                        ),
+                      if (showDot)
+                        Positioned(
+                          // -14 把 28px dot 的中心對齊到 userPx 點
+                          left: userPxX! / _radarPxSize * w - 14,
+                          top: userPxY! / _radarPxSize * h - 14,
+                          child: const _UserLocationDot(),
+                        ),
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _LiveDot(),
+                              SizedBox(width: 6),
+                              Text(
+                                'LIVE',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ],
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -792,8 +852,11 @@ class _RadarCard extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                Icon(Icons.radar_rounded,
-                    size: 14, color: Colors.white.withValues(alpha: 0.7)),
+                Icon(
+                  Icons.radar_rounded,
+                  size: 14,
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
                 const SizedBox(width: 6),
                 Text(
                   '觀測站 $stationName',
@@ -833,6 +896,48 @@ class _LiveDot extends StatelessWidget {
       decoration: const BoxDecoration(
         color: AppColors.danger,
         shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
+/// 我的位置在雷達上的紅點：外光暈（透明紅）+ 紅心（白邊）。
+/// 對應 cwa-tg-bot/services/radar_render.py 的 mark_location 一顆紅點。
+class _UserLocationDot extends StatelessWidget {
+  const _UserLocationDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.danger.withValues(alpha: 0.20),
+            ),
+          ),
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.danger,
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.danger.withValues(alpha: 0.7),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

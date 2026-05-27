@@ -18,11 +18,14 @@ class _AppShellState extends State<AppShell> {
 
   static const _tabs = <_TabSpec>[
     _TabSpec('Now', '現在', Icons.umbrella_outlined, Icons.umbrella_rounded),
-    _TabSpec('Radar', '雷達', Icons.satellite_alt_outlined,
-        Icons.satellite_alt_rounded),
+    _TabSpec(
+      'Radar',
+      '雷達',
+      Icons.satellite_alt_outlined,
+      Icons.satellite_alt_rounded,
+    ),
     _TabSpec('Route', '路徑', Icons.alt_route_outlined, Icons.alt_route_rounded),
-    _TabSpec('Favorites', '喜愛', Icons.star_outline_rounded,
-        Icons.star_rounded),
+    _TabSpec('Favorites', '喜愛', Icons.star_outline_rounded, Icons.star_rounded),
   ];
 
   @override

@@ -91,11 +91,13 @@ $HOME/.pub-cache/bin             # Serverpod CLI
 
 ```bash
 ./scripts/dev.sh                 # 清殘留 port → 起 server → 等 ready → 起 Flutter chrome
+./scripts/dev.sh --android       # 接好 USB 的 Android 實機 / emulator（自動 adb reverse）
 ./scripts/dev.sh --migrate       # 第一次跑 / 改完 schema：server 帶 --apply-migrations
 ./scripts/dev.sh --server-only   # 只起 server，tail log
 ./scripts/dev.sh --flutter-only  # 只起 Flutter（server 你自己手動）
 ```
 Ctrl-C 會把背景 server 一起收掉。Server log 在 `/tmp/cwa_server.log`。
+手機測試詳情見 [docs/mobile-testing.md](docs/mobile-testing.md)。
 
 ### 手動分開跑（debug 哪邊掛時用）
 
@@ -140,6 +142,7 @@ Server port 對照：8080 = API、8081 = Insights、8082 = Web（http://localhos
 
 - [plan.md](plan.md) — 階段、決策、風險
 - [README.md](README.md) — 對外說明、技術堆疊
+- [docs/mobile-testing.md](docs/mobile-testing.md) — Android / iOS 實機測試手冊
 - [../cwa-tg-bot/CLAUDE.md](../cwa-tg-bot/CLAUDE.md) — Python 參考實作的指引
 - [Figma Workflow](https://www.figma.com/board/bpGWEoHTqNY2diz4Z6qXH4/CWA-App-Workflow)
 - [Serverpod 文件](https://docs.serverpod.dev/)

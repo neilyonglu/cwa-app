@@ -186,9 +186,9 @@ class AppTheme {
   }
 
   static SystemUiOverlayStyle get systemOverlay => const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: AppColors.bgDark,
-        systemNavigationBarIconBrightness: Brightness.light,
-      );
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: AppColors.bgDark,
+    systemNavigationBarIconBrightness: Brightness.light,
+  );
 }
