@@ -28,6 +28,7 @@ abstract class NearbyRadarResult implements _i1.SerializableModel {
     required this.inRange,
     required this.isBlindZone,
     this.errorMessage,
+    this.aiAnalysis,
   });
 
   factory NearbyRadarResult({
@@ -43,6 +44,7 @@ abstract class NearbyRadarResult implements _i1.SerializableModel {
     required bool inRange,
     required bool isBlindZone,
     String? errorMessage,
+    String? aiAnalysis,
   }) = _NearbyRadarResultImpl;
 
   factory NearbyRadarResult.fromJson(Map<String, dynamic> jsonSerialization) {
@@ -63,6 +65,7 @@ abstract class NearbyRadarResult implements _i1.SerializableModel {
         jsonSerialization['isBlindZone'],
       ),
       errorMessage: jsonSerialization['errorMessage'] as String?,
+      aiAnalysis: jsonSerialization['aiAnalysis'] as String?,
     );
   }
 
@@ -101,6 +104,9 @@ abstract class NearbyRadarResult implements _i1.SerializableModel {
   /// 失敗時的訊息（ok == false 才有用）。
   String? errorMessage;
 
+  /// Gemini 寫的 2 句口語化分析。沒設 GEMINI_API_KEY / API 掛 → null。
+  String? aiAnalysis;
+
   /// Returns a shallow copy of this [NearbyRadarResult]
   /// with some or all fields replaced by the given arguments.
   @_i1.useResult
@@ -117,6 +123,7 @@ abstract class NearbyRadarResult implements _i1.SerializableModel {
     bool? inRange,
     bool? isBlindZone,
     String? errorMessage,
+    String? aiAnalysis,
   });
   @override
   Map<String, dynamic> toJson() {
@@ -134,6 +141,7 @@ abstract class NearbyRadarResult implements _i1.SerializableModel {
       'inRange': inRange,
       'isBlindZone': isBlindZone,
       if (errorMessage != null) 'errorMessage': errorMessage,
+      if (aiAnalysis != null) 'aiAnalysis': aiAnalysis,
     };
   }
 
@@ -159,6 +167,7 @@ class _NearbyRadarResultImpl extends NearbyRadarResult {
     required bool inRange,
     required bool isBlindZone,
     String? errorMessage,
+    String? aiAnalysis,
   }) : super._(
          ok: ok,
          dbz: dbz,
@@ -172,6 +181,7 @@ class _NearbyRadarResultImpl extends NearbyRadarResult {
          inRange: inRange,
          isBlindZone: isBlindZone,
          errorMessage: errorMessage,
+         aiAnalysis: aiAnalysis,
        );
 
   /// Returns a shallow copy of this [NearbyRadarResult]
@@ -191,6 +201,7 @@ class _NearbyRadarResultImpl extends NearbyRadarResult {
     bool? inRange,
     bool? isBlindZone,
     Object? errorMessage = _Undefined,
+    Object? aiAnalysis = _Undefined,
   }) {
     return NearbyRadarResult(
       ok: ok ?? this.ok,
@@ -205,6 +216,7 @@ class _NearbyRadarResultImpl extends NearbyRadarResult {
       inRange: inRange ?? this.inRange,
       isBlindZone: isBlindZone ?? this.isBlindZone,
       errorMessage: errorMessage is String? ? errorMessage : this.errorMessage,
+      aiAnalysis: aiAnalysis is String? ? aiAnalysis : this.aiAnalysis,
     );
   }
 }

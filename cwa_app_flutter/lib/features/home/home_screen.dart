@@ -119,19 +119,17 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// hero 大字下方那行。ready 狀態留空（雨勢說明改由下方 AI 卡呈現），
+  /// 只有 loading / error 才顯示提示。
   String get _heroSub {
     switch (_phase) {
-      case _Phase.ready:
-        final t = _result?.humanText ?? '';
-        final time = _result?.imageTime;
-        if (time != null && time.isNotEmpty) {
-          return '$t · 圖資 $time';
-        }
-        return t;
       case _Phase.error:
         return _errorMessage ?? '請稍後再試';
+      case _Phase.locating:
+      case _Phase.fetching:
+        return '更新中…';
       default:
-        return ' ';
+        return '';
     }
   }
 
@@ -180,10 +178,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       onRetry: _phase == _Phase.error ? _load : null,
                     ),
                     const SizedBox(height: 28),
-                    _SummaryCard(
+                    _AiCard(
+                      aiAnalysis: _result?.aiAnalysis,
                       humanText: _phase == _Phase.ready
                           ? _result?.humanText
                           : null,
+                      isLoading:
+                          _phase == _Phase.locating ||
+                          _phase == _Phase.fetching,
                     ),
                     const SizedBox(height: 12),
                     const _HourlyCard(),
@@ -199,8 +201,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           _phase == _Phase.locating ||
                           _phase == _Phase.fetching,
                     ),
-                    const SizedBox(height: 12),
-                    const _AiCard(),
                   ],
                 ),
               ),
@@ -523,45 +523,6 @@ class _GlassCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────
-// Summary card
-// ─────────────────────────────────────────────────────────
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({this.humanText});
-  final String? humanText;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = humanText ?? '正在抓取雷達資料…';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.glassWhite,
-              border: Border.all(color: AppColors.glassBorder, width: 0.6),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontSize: 15,
-                color: Colors.white,
-                height: 1.5,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────
 // Hourly card（mock，下一輪再串）
 // ─────────────────────────────────────────────────────────
 class _HourlyCard extends StatelessWidget {
@@ -739,10 +700,6 @@ class _RadarCard extends StatelessWidget {
     this.isLoading = false,
   });
 
-  /// CWA O-A0084-xxx 雷達圖固定為 3600×3600 px。
-  /// 把 server 回的 userPxX/userPxY 從這個座標系轉到顯示尺寸用。
-  static const _radarPxSize = 3600.0;
-
   final Uint8List? pngBytes;
   final String? imageTime;
   final String? stationName;
@@ -753,6 +710,7 @@ class _RadarCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // server 端裁切並把紅點 baked 進 PNG，client 直接顯示。
     final title = (imageTime != null && imageTime!.isNotEmpty)
         ? '雷達 · $imageTime'
         : '雷達 · LIVE';
@@ -767,84 +725,72 @@ class _RadarCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: AspectRatio(
-              aspectRatio: 1, // CWA PNG 是 3600x3600 正方
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final w = constraints.maxWidth;
-                  final h = constraints.maxHeight;
-                  final showDot =
-                      pngBytes != null &&
-                      inRange &&
-                      userPxX != null &&
-                      userPxY != null;
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (pngBytes != null)
-                        Image.memory(
-                          pngBytes!,
-                          fit: BoxFit.cover,
-                          gaplessPlayback: true,
-                          filterQuality: FilterQuality.medium,
-                        )
-                      else
-                        const DecoratedBox(
-                          decoration: BoxDecoration(color: Color(0xFF15233F)),
-                          child: CustomPaint(painter: _RadarPainter()),
-                        ),
-                      if (isLoading)
-                        Container(
-                          color: Colors.black.withValues(alpha: 0.35),
-                          alignment: Alignment.center,
-                          child: const SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2.5,
-                            ),
-                          ),
-                        ),
-                      if (showDot)
-                        Positioned(
-                          // -14 把 28px dot 的中心對齊到 userPx 點
-                          left: userPxX! / _radarPxSize * w - 14,
-                          top: userPxY! / _radarPxSize * h - 14,
-                          child: const _UserLocationDot(),
-                        ),
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.45),
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _LiveDot(),
-                              SizedBox(width: 6),
-                              Text(
-                                'LIVE',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                            ],
-                          ),
+              aspectRatio: 1, // 450×450 裁切後仍是正方
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (pngBytes != null)
+                    Image.memory(
+                      pngBytes!,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                      filterQuality: FilterQuality.medium,
+                    )
+                  else
+                    const DecoratedBox(
+                      decoration: BoxDecoration(color: Color(0xFF15233F)),
+                      child: CustomPaint(painter: _RadarPainter()),
+                    ),
+                  if (isLoading)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      alignment: Alignment.center,
+                      child: const SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.5,
                         ),
                       ),
-                    ],
-                  );
-                },
+                    ),
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _LiveDot(),
+                          SizedBox(width: 6),
+                          Text(
+                            'LIVE',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (inRange)
+                    const Positioned(
+                      bottom: 8,
+                      left: 8,
+                      child: _ScaleHint(),
+                    ),
+                ],
               ),
             ),
           ),
@@ -901,43 +847,27 @@ class _LiveDot extends StatelessWidget {
   }
 }
 
-/// 我的位置在雷達上的紅點：外光暈（透明紅）+ 紅心（白邊）。
-/// 對應 cwa-tg-bot/services/radar_render.py 的 mark_location 一顆紅點。
-class _UserLocationDot extends StatelessWidget {
-  const _UserLocationDot();
+/// 雷達卡左下角的尺度提示。
+/// CWA 雷達 PIXEL_PER_KM = 11.96，server 端裁切 450 px → 約 37.6 km 寬。
+class _ScaleHint extends StatelessWidget {
+  const _ScaleHint();
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 28,
-      height: 28,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.danger.withValues(alpha: 0.20),
-            ),
-          ),
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.danger,
-              border: Border.all(color: Colors.white, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.danger.withValues(alpha: 0.7),
-                  blurRadius: 8,
-                ),
-              ],
-            ),
-          ),
-        ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: const Text(
+        '範圍 ~38 km',
+        style: TextStyle(
+          fontSize: 11,
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.4,
+        ),
       ),
     );
   }
@@ -967,46 +897,57 @@ class _RadarPainter extends CustomPainter {
 }
 
 // ─────────────────────────────────────────────────────────
-// AI card（mock，下一輪再接 Gemini endpoint）
+// AI card — Gemini 雨勢分析
 // ─────────────────────────────────────────────────────────
 class _AiCard extends StatelessWidget {
-  const _AiCard();
+  const _AiCard({
+    this.aiAnalysis,
+    this.humanText,
+    this.isLoading = false,
+  });
+
+  /// Gemini 產生的口語化分析（server 端 aiAnalysis 欄位）。
+  final String? aiAnalysis;
+
+  /// 後備：dBZ 規則式描述（Gemini 沒設 key / 失敗時用）。
+  final String? humanText;
+
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
+    final hasAi = aiAnalysis != null && aiAnalysis!.isNotEmpty;
+    final body = hasAi
+        ? aiAnalysis!
+        : (humanText ?? (isLoading ? '正在分析雨勢…' : 'AI 分析暫時無法取得'));
+
     return _GlassCard(
       icon: Icons.auto_awesome_rounded,
-      title: 'AI 分析（待接 Gemini）',
-      child: Column(
+      title: hasAi ? 'AI 分析' : 'AI 分析（規則式後備）',
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '此處將顯示 Gemini 根據當前 dBZ 強度 + 周邊雨帶趨勢產生的口語化建議。',
-            style: TextStyle(
-              fontSize: 15,
-              color: Colors.white,
-              height: 1.5,
+          Expanded(
+            child: Text(
+              body,
+              style: const TextStyle(
+                fontSize: 15,
+                color: Colors.white,
+                height: 1.55,
+              ),
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Icon(
-                Icons.umbrella_rounded,
-                size: 14,
-                color: AppColors.warning,
+          if (isLoading) ...[
+            const SizedBox(width: 12),
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
               ),
-              const SizedBox(width: 6),
-              Text(
-                '尚未接 endpoint',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.white.withValues(alpha: 0.7),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );

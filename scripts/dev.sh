@@ -25,6 +25,16 @@ DART="${DART:-$HOME/development/flutter/bin/dart}"
 FLUTTER="${FLUTTER:-$HOME/development/flutter/bin/flutter}"
 SERVER_LOG="/tmp/cwa_server.log"
 
+# ── 載入 .env（GEMINI_API_KEY 等密鑰）─────────────────
+# 檔案在 gitignore 內、不會被 commit。沒 .env 也 OK，
+# Gemini 分析會直接跳過。
+if [ -f "$ROOT/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$ROOT/.env"
+  set +a
+fi
+
 # ── 參數 ────────────────────────────────────────────
 MIGRATE=0
 SERVER_ONLY=0

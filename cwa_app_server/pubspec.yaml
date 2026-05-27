@@ -13,6 +13,7 @@ dependencies:
   serverpod_auth_idp_server: 3.4.8
   http: ^1.2.0
   image: ^4.5.0
+  google_generative_ai: ^0.4.0
 
 dev_dependencies:
   lints: '>=3.0.0 <7.0.0'

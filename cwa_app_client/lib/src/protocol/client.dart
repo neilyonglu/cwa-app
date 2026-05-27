@@ -244,7 +244,11 @@ class EndpointJwtRefresh extends _i4.EndpointRefreshJwtTokens {
 /// 雷達相關 endpoint。
 ///
 /// `getNearby(lat, lon)` 等同 cwa-tg-bot 的「查看現在位置」：
-/// 依緯度挑站 → 抓 PNG → 投影 + dBZ 分析 → 回傳結構化結果。
+///   1. 依緯度挑站
+///   2. 抓 PNG（cached）
+///   3. 投影 + dBZ 分析
+///   4. 在 PNG 上畫紅點 + 裁切 450×450（觀測點置中）
+///   5. 回傳結構化結果（含裁切後 PNG）
 /// {@category Endpoint}
 class EndpointRadar extends _i2.EndpointRef {
   EndpointRadar(_i2.EndpointCaller caller) : super(caller);

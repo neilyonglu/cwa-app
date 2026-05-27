@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// 設計 token：色彩 / 字級 / 間距 / 圓角。
 /// 全 app 共用，畫面內不可硬寫 hex。
@@ -66,12 +67,12 @@ class AppSpacing {
 }
 
 class AppText {
-  // hero number：模仿 iOS Weather 的大型半透薄體
+  // hero number：狀態大字（沒下雨 / 中雨）。縮小自原本 80。
   static const heroNumber = TextStyle(
-    fontSize: 80,
-    fontWeight: FontWeight.w200,
-    height: 1.0,
-    letterSpacing: -2,
+    fontSize: 54,
+    fontWeight: FontWeight.w300,
+    height: 1.05,
+    letterSpacing: -1,
     color: Colors.white,
     fontFeatures: [FontFeature.tabularFigures()],
   );
@@ -165,6 +166,18 @@ class AppText {
 class AppTheme {
   static ThemeData get dark {
     final base = ThemeData.dark(useMaterial3: true);
+
+    // Inter（英數）+ Noto Sans TC（中文 fallback）。
+    // 全 app 透過 textTheme 繼承：所有沒指定 fontFamily 的 TextStyle
+    // （含 AppText.* 與畫面內 inline TextStyle）merge 後都吃到 Inter，
+    // 遇中文字自動 fallback 到 Noto Sans TC。
+    final notoTc = GoogleFonts.notoSansTc().fontFamily;
+    final textTheme = GoogleFonts.interTextTheme(base.textTheme).apply(
+      bodyColor: AppColors.textPrimary,
+      displayColor: AppColors.textPrimary,
+      fontFamilyFallback: notoTc != null ? [notoTc] : null,
+    );
+
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.bgDark,
       colorScheme: const ColorScheme.dark(
@@ -175,10 +188,7 @@ class AppTheme {
         onSurface: AppColors.textPrimary,
         error: AppColors.danger,
       ),
-      textTheme: base.textTheme.apply(
-        bodyColor: AppColors.textPrimary,
-        displayColor: AppColors.textPrimary,
-      ),
+      textTheme: textTheme,
       iconTheme: const IconThemeData(color: AppColors.textPrimary, size: 22),
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,

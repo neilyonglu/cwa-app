@@ -35,3 +35,6 @@ fields:
 
   ### 失敗時的訊息（ok == false 才有用）。
   errorMessage: String?
+
+  ### Gemini 寫的 2 句口語化分析。沒設 GEMINI_API_KEY / API 掛 → null。
+  aiAnalysis: String?
